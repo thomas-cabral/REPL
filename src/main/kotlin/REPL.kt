@@ -1,4 +1,4 @@
-interface REPL {
+interface REPLData {
     fun read(key: String) : String?
     fun write(keyVal: Pair<String, String>)
     fun delete(key: String)
@@ -7,7 +7,17 @@ interface REPL {
     fun abort()
 }
 
-class REPLImpl(val store: MutableMap<String, String> = mutableMapOf()) : REPL {
+enum class Commands {
+    READ,
+    WRITE,
+    DELETE,
+    START,
+    COMMIT,
+    ABORT,
+    QUIT
+}
+
+class REPLDataImpl(val store: MutableMap<String, String> = mutableMapOf()) : REPLData {
     private val pendingTransactions = mutableListOf<MutableMap<String, String>>()
 
     private fun getActiveStore() : MutableMap<String, String> {
@@ -34,15 +44,32 @@ class REPLImpl(val store: MutableMap<String, String> = mutableMapOf()) : REPL {
     }
 
     override fun commit() {
-        store.clear()
-        pendingTransactions.last().forEach {
-            store[it.key] = it.value
+        val currentStore: MutableMap<String, String>
+        val transactionListSize = pendingTransactions.size
+        val nextTransactionIndex = pendingTransactions.lastIndex - 1
+        currentStore = if (transactionListSize == 1) {
+            store
+        } else {
+            pendingTransactions[nextTransactionIndex]
         }
-        pendingTransactions.clear()
-    }
 
-    override fun abort() {
+        val currentTransaction =  pendingTransactions.last()
+
+        currentStore.forEach {
+            if (!currentTransaction.containsKey(it.key)) {
+                currentStore.remove(it.key)
+            }
+        }
+
+        currentTransaction.forEach {
+            currentStore[it.key] = it.value
+        }
         pendingTransactions.removeLast()
     }
 
+    override fun abort() {
+        if (pendingTransactions.isNotEmpty()) {
+            pendingTransactions.removeLast()
+        }
+    }
 }
